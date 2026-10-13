@@ -16,7 +16,6 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 
 public class RefreshService extends Service {
 
@@ -56,12 +55,7 @@ public class RefreshService extends Service {
         sp.edit().putString("url", u).apply();
         url = u;
 
-        if (web == null) {
-            web = new WebView(getApplicationContext());
-            web.getSettings().setJavaScriptEnabled(true);
-            web.getSettings().setDomStorageEnabled(true);
-            web.setWebViewClient(new WebViewClient());
-        }
+        web = BrowserHolder.get(this);
         wakeLock.acquire(120_000L);
         web.loadUrl(url);
         scheduleNext();
@@ -111,7 +105,8 @@ public class RefreshService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         unregisterReceiver(alarmReceiver);
         if (wakeLock.isHeld()) wakeLock.release();
-        if (web != null) { web.destroy(); web = null; }
+        BrowserHolder.destroy();
+        web = null;
         getSharedPreferences("mb", MODE_PRIVATE).edit().remove("url").apply();
         super.onDestroy();
     }

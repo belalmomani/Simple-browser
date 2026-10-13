@@ -12,8 +12,10 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -22,6 +24,7 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_URL = "https://dreams.xo.je/";
     private EditText input;
     private TextView status;
+    private FrameLayout container;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,7 +33,7 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        int p = (int) (12 * getResources().getDisplayMetrics().density);
+        int p = (int) (8 * getResources().getDisplayMetrics().density);
         root.setPadding(p, p, p, p);
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             v.setPadding(p, p + insets.getSystemWindowInsetTop(), p, p + insets.getSystemWindowInsetBottom());
@@ -50,16 +53,21 @@ public class MainActivity extends Activity {
         bar.addView(open, new LinearLayout.LayoutParams(-2, -2));
         bar.addView(input, new LinearLayout.LayoutParams(0, -2, 1f));
 
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
         status = new TextView(this);
-        status.setPadding(0, p, 0, p);
-        status.setTextSize(16);
-
+        status.setTextSize(13);
         Button stop = new Button(this);
         stop.setText("إيقاف");
+        row.addView(status, new LinearLayout.LayoutParams(0, -2, 1f));
+        row.addView(stop, new LinearLayout.LayoutParams(-2, -2));
+
+        container = new FrameLayout(this);
 
         root.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-        root.addView(status, new LinearLayout.LayoutParams(-1, -2));
-        root.addView(stop, new LinearLayout.LayoutParams(-2, -2));
+        root.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        root.addView(container, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
 
         open.setOnClickListener(v -> openUrl());
@@ -82,13 +90,39 @@ public class MainActivity extends Activity {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         if (imm != null) imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
 
+        BrowserHolder.get(getApplicationContext());
+        BrowserHolder.attach(this, container);
         startForegroundService(new Intent(this, RefreshService.class).putExtra("url", u));
-        status.setText("يعمل في الخلفية، تحديث كامل كل 30 دقيقة:\n" + u);
+        status.setText("يعمل في الخلفية، تحديث كامل كل 30 دقيقة");
 
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
             startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                     Uri.parse("package:" + getPackageName())));
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (BrowserHolder.exists()) {
+            BrowserHolder.attach(this, container);
+            status.setText("يعمل في الخلفية، تحديث كامل كل 30 دقيقة");
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        BrowserHolder.detach(getApplicationContext());
+        super.onPause();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (BrowserHolder.exists()) {
+            WebView w = BrowserHolder.get(getApplicationContext());
+            if (w.canGoBack()) { w.goBack(); return; }
+        }
+        super.onBackPressed();
     }
 }
