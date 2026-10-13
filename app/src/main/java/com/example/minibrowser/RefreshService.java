@@ -14,6 +14,7 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.net.wifi.WifiManager;
 import android.os.SystemClock;
 import android.webkit.WebView;
 
@@ -25,6 +26,7 @@ public class RefreshService extends Service {
     private WebView web;
     private String url;
     private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
 
     private final BroadcastReceiver alarmReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { refreshNow(); }
@@ -42,6 +44,11 @@ public class RefreshService extends Service {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "minibrowser:refresh");
         wakeLock.setReferenceCounted(false);
+        WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        wifiLock = wm.createWifiLock(Build.VERSION.SDK_INT >= 29
+                ? WifiManager.WIFI_MODE_FULL_LOW_LATENCY : WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "minibrowser:wifi");
+        wifiLock.setReferenceCounted(false);
     }
 
     @Override
@@ -56,14 +63,14 @@ public class RefreshService extends Service {
         url = u;
 
         web = BrowserHolder.get(this);
-        wakeLock.acquire(120_000L);
+        if (!wakeLock.isHeld()) wakeLock.acquire();         // يبقى المعالج مستيقظًا طوال عمل الخدمة
+        if (!wifiLock.isHeld()) wifiLock.acquire();
         web.loadUrl(url);
         scheduleNext();
         return START_STICKY;
     }
 
     private void refreshNow() {
-        wakeLock.acquire(120_000L);                        // يبقي المعالج مستيقظًا أثناء التحميل
         if (web.getUrl() == null) web.loadUrl(url); else web.reload();
         scheduleNext();
     }
@@ -105,6 +112,7 @@ public class RefreshService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         unregisterReceiver(alarmReceiver);
         if (wakeLock.isHeld()) wakeLock.release();
+        if (wifiLock.isHeld()) wifiLock.release();
         BrowserHolder.destroy();
         web = null;
         getSharedPreferences("mb", MODE_PRIVATE).edit().remove("url").apply();

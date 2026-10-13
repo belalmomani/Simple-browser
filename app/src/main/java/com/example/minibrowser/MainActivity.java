@@ -95,6 +95,10 @@ public class MainActivity extends Activity {
         startForegroundService(new Intent(this, RefreshService.class).putExtra("url", u));
         status.setText("يعمل في الخلفية، تحديث كامل كل 30 دقيقة");
 
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+        }
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
             startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
